@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#6b46c1">
+<title>Smart Kids AR เกมนับจำนวน</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;font-family:Arial,"Noto Sans Thai",sans-serif;overflow:hidden;background:#132238}
+#camera{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:linear-gradient(#9edfff,#fff4c3);transform:scaleX(-1)}
+.overlay{position:fixed;inset:0;background:linear-gradient(180deg,rgba(25,35,65,.42),rgba(255,255,255,.08) 45%,rgba(25,35,65,.42));}
+.app{position:fixed;inset:0;display:flex;flex-direction:column;padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom));}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.badge{background:rgba(255,255,255,.94);border:3px solid #ffd65a;border-radius:999px;padding:9px 13px;font-weight:bold;font-size:clamp(16px,4vw,21px);box-shadow:0 4px 10px #0003}
+.title{text-align:center;color:#fff;text-shadow:0 3px 5px #0009;font-size:clamp(23px,6vw,34px);font-weight:800;margin:5px 0}
+.stage{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+.glass{width:min(96vw,620px);background:rgba(255,255,255,.78);backdrop-filter:blur(8px);border:4px solid rgba(255,255,255,.9);border-radius:28px;padding:12px;box-shadow:0 10px 28px #0005}
+#message{text-align:center;font-size:clamp(20px,5vw,29px);font-weight:bold;color:#c2185b;min-height:42px}
+#fruits{min-height:245px;display:flex;flex-wrap:wrap;align-content:center;align-items:center;justify-content:center;gap:4px;font-size:clamp(68px,19vw,112px);line-height:1.02;filter:drop-shadow(0 6px 5px #0004)}
+.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.choice{min-height:78px;border:0;border-radius:22px;font-size:clamp(34px,10vw,52px);font-weight:bold;background:linear-gradient(#a7e4ff,#61bff3);color:#173b61;box-shadow:0 6px 0 #288cc2,0 8px 12px #0003}
+.choice:active{transform:translateY(4px);box-shadow:0 2px 0 #288cc2}
+.choice:disabled{opacity:.65}
+.cameraBtn{border:0;border-radius:999px;padding:9px 12px;background:#ff7ca5;color:#fff;font-weight:bold;font-size:15px}
+#startScreen,#result{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(#95dcff,#fff6c8);z-index:10}
+.modal{width:min(92vw,460px);background:#fff;border-radius:28px;padding:24px;text-align:center;box-shadow:0 12px 30px #0004}
+.bigBtn{width:100%;border:0;border-radius:20px;padding:16px;background:#7b4bc4;color:#fff;font-size:22px;font-weight:bold;margin-top:12px}
+#result{display:none}
+#result.show{display:flex}
+.sticker{position:fixed;font-size:35px;pointer-events:none;animation:float 1.6s ease-out forwards;z-index:20}
+@keyframes float{to{transform:translateY(-70vh) rotate(360deg);opacity:0}}
+.note{font-size:14px;color:#555;line-height:1.5}
+</style>
+</head>
+<body>
+<video id="camera" autoplay muted playsinline></video>
+<div class="overlay"></div>
+
+<div class="app">
+  <div class="top">
+    <div class="badge">ข้อ <span id="qNo">1</span>/10</div>
+    <button class="cameraBtn" id="cameraBtn">📷 เปิดกล้อง</button>
+    <div class="badge">⭐ <span id="score">0</span></div>
+  </div>
+  <div class="title">🍎 AR เกมนับจำนวน</div>
+
+  <div class="stage">
+    <div class="glass">
+      <div id="message">นับผลไม้ แล้วเลือกคำตอบค่ะ</div>
+      <div id="fruits"></div>
+      <div class="choices" id="choices"></div>
+    </div>
+  </div>
+</div>
+
+<div id="startScreen">
+  <div class="modal">
+    <div style="font-size:68px">📱🍓</div>
+    <h1 style="color:#7543bd">AR เกมนับจำนวน</h1>
+    <p>ผลไม้ขนาดใหญ่จะลอยอยู่บนภาพจากกล้องมือถือ</p>
+    <button class="bigBtn" id="startBtn">เริ่มเล่นและเปิดกล้อง</button>
+    <button class="bigBtn" style="background:#ff7ca5" id="noCameraBtn">เล่นโดยไม่เปิดกล้อง</button>
+    <p class="note">กล้องอาจต้องเปิดเกมผ่านเว็บไซต์ HTTPS หากเปิดจากไฟล์แล้วกล้องไม่ทำงาน ยังเล่นโหมดพื้นหลังการ์ตูนได้ตามปกติ</p>
+  </div>
+</div>
+
+<div id="result">
+  <div class="modal">
+    <div style="font-size:72px">🏆</div>
+    <h1>เล่นครบ 10 ข้อแล้วค่ะ</h1>
+    <div style="font-size:30px">คะแนนรวม</div>
+    <div style="font-size:58px;font-weight:bold;color:#7b4bc4"><span id="finalScore">0</span>/10</div>
+    <p id="resultText" style="font-size:21px"></p>
+    <button class="bigBtn" onclick="startGame(false)">🔄 เล่นใหม่</button>
+  </div>
+</div>
+
+<script>
+const fruitIcons=["🍎","🍌","🍇","🍊","🍓","🍍","🍉","🥝"];
+let current=1,total=0,answer=0,locked=false,thaiFemaleVoice=null,stream=null;
+
+function loadVoices(){
+  if(!("speechSynthesis" in window)) return;
+  const voices=speechSynthesis.getVoices();
+  const thai=voices.filter(v=>v.lang && v.lang.toLowerCase().startsWith("th"));
+  thaiFemaleVoice =
+    thai.find(v=>/female|หญิง|siri|kanya|narisa|premwadee|google.*ไทย/i.test(v.name)) ||
+    thai[0] || null;
+}
+if("speechSynthesis" in window){
+  loadVoices();
+  speechSynthesis.onvoiceschanged=loadVoices;
+}
+
+function speak(text,onEnd){
+  if(!("speechSynthesis" in window)){ if(onEnd)setTimeout(onEnd,500); return; }
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang="th-TH"; u.rate=.82; u.pitch=1.16;
+  if(thaiFemaleVoice) u.voice=thaiFemaleVoice;
+  if(onEnd){
+    let done=false;
+    const finish=()=>{if(done)return;done=true;onEnd();};
+    u.onend=finish; u.onerror=()=>setTimeout(finish,300);
+    setTimeout(finish,4500);
+  }
+  speechSynthesis.speak(u);
+}
+
+async function openCamera(){
+  try{
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    camera.srcObject=stream;
+    cameraBtn.textContent="📷 กล้องทำงาน";
+    return true;
+  }catch(e){
+    cameraBtn.textContent="📷 ใช้พื้นหลัง";
+    return false;
+  }
+}
+cameraBtn.onclick=openCamera;
+
+function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
+
+function renderQuestion(){
+  locked=false;
+  qNo.textContent=current;
+  answer=Math.floor(Math.random()*9)+1;
+  const icon=fruitIcons[Math.floor(Math.random()*fruitIcons.length)];
+  fruits.textContent=Array(answer).fill(icon).join(" ");
+
+  if(current===10){
+    message.textContent="ข้อสุดท้ายแล้วค่ะ";
+    speak("ข้อสุดท้ายแล้วค่ะ");
+  }else{
+    message.textContent="นับผลไม้ แล้วเลือกคำตอบค่ะ";
+  }
+
+  let opts=[answer];
+  while(opts.length<3){
+    const n=Math.floor(Math.random()*9)+1;
+    if(!opts.includes(n)) opts.push(n);
+  }
+  choices.innerHTML="";
+  shuffle(opts).forEach(n=>{
+    const b=document.createElement("button");
+    b.className="choice"; b.textContent=n;
+    b.onclick=()=>checkAnswer(n);
+    choices.appendChild(b);
+  });
+}
+
+function disableChoices(){
+  document.querySelectorAll(".choice").forEach(b=>b.disabled=true);
+}
+
+function celebration(){
+  for(let i=0;i<14;i++){
+    const s=document.createElement("div");
+    s.className="sticker";
+    s.textContent=i%2?"⭐":"🎉";
+    s.style.left=Math.random()*90+"vw";
+    s.style.bottom=(5+Math.random()*25)+"vh";
+    document.body.appendChild(s);
+    setTimeout(()=>s.remove(),1700);
+  }
+}
+
+function checkAnswer(n){
+  if(locked)return;
+  locked=true; disableChoices();
+
+  if(n===answer){
+    total++; score.textContent=total;
+    message.textContent="🎉 เก่งมากค่ะ";
+    celebration();
+    if(current===10){
+      speak("เก่งมากค่ะ",finishGame);
+    }else{
+      speak("เก่งมากค่ะ",()=>speak("มาทำข้อต่อไปค่ะ",nextQuestion));
+    }
+  }else{
+    message.textContent="ไม่เป็นไรค่ะ";
+    if(current===10){
+      speak("ไม่เป็นไรค่ะ",finishGame);
+    }else{
+      speak("ไม่เป็นไรค่ะ มาทำข้อต่อไปค่ะ",nextQuestion);
+    }
+  }
+}
+
+function nextQuestion(){
+  current++;
+  renderQuestion();
+}
+
+function finishGame(){
+  finalScore.textContent=total;
+  let text=total===10?"ยอดเยี่ยมมากค่ะ ตอบถูกทุกข้อเลย":
+           total>=7?"เก่งมากค่ะ ทำได้ดีมาก":
+           total>=4?"ทำได้ดีค่ะ ลองเล่นอีกครั้งนะคะ":
+           "ไม่เป็นไรค่ะ ฝึกอีกนิดแล้วจะเก่งขึ้นแน่นอน";
+  resultText.textContent=text;
+  result.classList.add("show");
+  speak(`ทำครบสิบข้อแล้วค่ะ ได้ ${total} คะแนน จากสิบคะแนน ${text}`);
+}
+
+function startGame(hideStart=true){
+  if("speechSynthesis" in window) speechSynthesis.cancel();
+  current=1; total=0; answer=0; locked=false;
+  score.textContent=0;
+  result.classList.remove("show");
+  if(hideStart) startScreen.style.display="none";
+  renderQuestion();
+}
+
+startBtn.onclick=async()=>{
+  await openCamera();
+  startGame(true);
+};
+noCameraBtn.onclick=()=>startGame(true);
+</script>
+</body>
+</html>
